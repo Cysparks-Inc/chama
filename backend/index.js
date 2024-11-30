@@ -1,165 +1,190 @@
-import React, { useState } from "react";
+const express = require('express');
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const cors = require('cors');
+const bodyParser = require('body-parser');
 
-const SavingsForm = () => {
-  const [formData, setFormData] = useState({
-    amount: "",
-    type: "monthly",
-    description: "",
-  });
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ text: "", type: "" });
+const app = express();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage({ text: "", type: "" });
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.json());
 
-    try {
-      const response = await fetch("http://localhost:5000/api/savings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+const uri = "mongodb+srv://Samuel:Ffre4Mi0j2dHmt1z@cluster0.edl745m.mongodb.net/chama?retryWrites=true&w=majority";
 
-      const data = await response.json();
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+});
 
-      if (response.ok) {
-        setMessage({ text: "Savings recorded successfully!", type: "success" });
-        setFormData({
-          amount: "",
-          type: "monthly",
-          description: "",
-        });
-      } else {
-        throw new Error(data.error || "Failed to record savings");
-      }
-    } catch (error) {
-      setMessage({ text: error.message, type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  };
+async function connectDB() {
+  try {
+    await client.connect();
+    console.log("Connected to MongoDB!");
+    return client.db("chama");
+  } catch (error) {
+    console.error("Error connecting to MongoDB:", error);
+    throw error;
+  }
+}
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+// API Routes
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const db = await connectDB();
+    
+    // Get total members
+    const totalMembers = await db.collection('users').countDocuments({ role: 'member' });
+    
+    // Get total savings
+    const savingsAgg = await db.collection('savings').aggregate([
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]).toArray();
+    
+    // Get active loans
+    const activeLoans = await db.collection('loans').countDocuments({ status: 'approved' });
+    
+    // Get recent transactions
+    const recentTransactions = await db.collection('transactions')
+      .find()
+      .sort({ date: -1 })
+      .limit(5)
+      .toArray();
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full mx-auto">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">Record Savings</h2>
-          <p className="mt-2 text-gray-600">Enter contribution details below</p>
-        </div>
+    // Get savings trend
+    const savingsTrend = await db.collection('savings').aggregate([
+      {
+        $group: {
+          _id: { $month: "$date" },
+          total: { $sum: "$amount" }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]).toArray();
 
-        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label
-                htmlFor="amount"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Amount (KSh)
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 sm:text-sm">KSh</span>
-                </div>
-                <input
-                  type="number"
-                  id="amount"
-                  name="amount"
-                  required
-                  min="0"
-                  value={formData.amount}
-                  onChange={handleChange}
-                  className="block w-full pl-12 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
+    res.json({
+      totalMembers,
+      totalSavings: savingsAgg[0]?.total || 0,
+      activeLoans,
+      recentTransactions,
+      savingsTrend
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-            <div>
-              <label
-                htmlFor="type"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Contribution Type
-              </label>
-              <select
-                id="type"
-                name="type"
-                required
-                value={formData.type}
-                onChange={handleChange}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md text-gray-900"
-              >
-                <option value="monthly">Monthly Contribution</option>
-                <option value="special">Special Contribution</option>
-              </select>
-            </div>
+// Members endpoints
+app.post('/api/members', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const result = await db.collection('users').insertOne({
+      ...req.body,
+      joinedDate: new Date(),
+      contributionsTotal: 0,
+      role: 'member'
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-            <div>
-              <label
-                htmlFor="description"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Description
-              </label>
-              <textarea
-                id="description"
-                name="description"
-                rows="3"
-                value={formData.description}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-                placeholder="Add any additional notes..."
-              />
-            </div>
+app.get('/api/members', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const members = await db.collection('users').find({ role: 'member' }).toArray();
+    res.json(members);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-            {message.text && (
-              <div
-                className={`p-4 rounded-md ${
-                  message.type === "success"
-                    ? "bg-green-50 text-green-700"
-                    : "bg-red-50 text-red-700"
-                }`}
-              >
-                {message.text}
-              </div>
-            )}
+// Savings endpoints
+app.post('/api/savings', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const result = await db.collection('savings').insertOne({
+      ...req.body,
+      date: new Date(),
+      memberId: new ObjectId(req.body.memberId)
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
-                ${
-                  loading
-                    ? "bg-blue-400 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                }
-              `}
-            >
-              {loading ? (
-                <div className="flex items-center">
-                  <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin mr-2"></div>
-                  Processing...
-                </div>
-              ) : (
-                "Record Savings"
-              )}
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-};
+// Loans endpoints
+app.post('/api/loans', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const result = await db.collection('loans').insertOne({
+      ...req.body,
+      dateIssued: new Date(),
+      status: 'pending',
+      memberId: new ObjectId(req.body.memberId)
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-export default SavingsForm;
+// Transactions endpoints
+app.post('/api/transactions', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const result = await db.collection('transactions').insertOne({
+      ...req.body,
+      date: new Date(),
+      memberId: new ObjectId(req.body.memberId)
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Projects endpoints
+app.post('/api/projects', async (req, res) => {
+  try {
+    const db = await connectDB();
+    const result = await db.collection('projects').insertOne({
+      ...req.body,
+      startDate: new Date(),
+      status: 'planning',
+      members: req.body.members.map(id => new ObjectId(id))
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Something went wrong!' });
+});
+
+// Start server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  try {
+    await client.close();
+    console.log('MongoDB connection closed.');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
+});

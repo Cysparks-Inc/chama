@@ -2,7 +2,6 @@ import React, { useState } from "react";
 
 const SavingsForm = () => {
   const [formData, setFormData] = useState({
-    membershipNumber: "", // Changed from memberId to membershipNumber
     amount: "",
     type: "monthly",
     description: "",
@@ -29,7 +28,6 @@ const SavingsForm = () => {
       if (response.ok) {
         setMessage({ text: "Savings recorded successfully!", type: "success" });
         setFormData({
-          membershipNumber: "",
           amount: "",
           type: "monthly",
           description: "",
@@ -57,32 +55,11 @@ const SavingsForm = () => {
       <div className="max-w-md w-full mx-auto">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-900">Record Savings</h2>
-          <p className="mt-2 text-gray-600">
-            Enter member's contribution details below
-          </p>
+          <p className="mt-2 text-gray-600">Enter contribution details below</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label
-                htmlFor="membershipNumber"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Membership Number
-              </label>
-              <input
-                type="text"
-                id="membershipNumber"
-                name="membershipNumber"
-                required
-                value={formData.membershipNumber}
-                onChange={handleChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-                placeholder="Enter membership number"
-              />
-            </div>
-
             <div>
               <label
                 htmlFor="amount"
