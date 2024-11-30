@@ -17,37 +17,3 @@
 
 
 
-.dashboard {
-  padding: 20px;
-  font-family: Arial, sans-serif;
-}
-
-.stats {
-  margin-top: 20px;
-  font-size: 18px;
-}
-
-.analytics {
-  margin-top: 20px;
-}
-
-.monthly-savings {
-  margin-top: 20px;
-}
-
-.skeleton {
-  background-color: #f4f4f4;
-  animation: skeleton-loading 1.5s infinite ease-in-out;
-}
-
-@keyframes skeleton-loading {
-  0% {
-    background-color: #e0e0e0;
-  }
-  50% {
-    background-color: #f0f0f0;
-  }
-  100% {
-    background-color: #e0e0e0;
-  }
-}
